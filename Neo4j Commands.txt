@@ -22,11 +22,11 @@ create (t)-[:BELONGS_TO]->(g)
 
 
 -- user track relationship
-load csv from 'file:///graph_dataset.csv' as row with row, toInteger(row[0]) as id, row[1] as labels, row[2] as name, toInteger(row[3]) as start, toInteger(row[4]) as end, row[5] as type, toFloat(row[6]) as rating
+load csv from 'file:///graph_dataset.csv' as row with row, toInteger(row[0]) as id, row[1] as labels, row[2] as name, toInteger(row[3]) as start, toInteger(row[4]) as end, row[5] as type, toInteger(row[6]) as x
 where type = "LISTENS_TO"
 match(u:user) where u.id=start
 match(t:track) where t.id=end
-create (u)-[:LISTENS_TO]->(t)
+create (a:user {id:u.id})-[:LISTENS_TO{rating:3}]->(t1:track{id:t.id})
 
 
 -- Content Filtering
@@ -59,4 +59,44 @@ order by simindex desc limit 1
 with o, u
 match(o:user)-[:LISTENS_TO]->(t:track)
 where not exists((u)-[:LISTENS_TO]->(t))
-return t.name as Recommendations
+return t.
+
+-- No of songs for each genres
+MATCH (g:genre)<-[r:BELONGS_TO]-(t:track) RETURN g.name as Genre, COUNT(r) as No_of_Songs
+
+-- Popular Genre
+MATCH (x:genre)<-[e:BELONGS_TO]-(g:track)<-[r:LISTENS_TO]-(t:user) RETURN x.name as Genre,count(e) as Users order by Users desc
+
+-- Graph Projection
+CALL gds.graph.project('userTrack', 'user', {LISTENS_TO: {properties: 'rating'}})
+
+-- Betweeness
+CALL gds.betweenness.stream('userTrack')
+YIELD nodeId, score
+RETURN gds.util.asNode(nodeId).name AS name, score
+ORDER BY name ASC
+
+-- article rank
+CALL gds.articleRank.stream('userTrack1')
+YIELD nodeId, score
+RETURN gds.util.asNode(nodeId).name AS name, score
+ORDER BY score DESC, name ASC
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+name as Recommendations

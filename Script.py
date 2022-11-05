@@ -37,7 +37,7 @@ for i in range(0, len(tracks)):
     n = random.randrange(10)
     for j in range(0,n):
         k = random.randrange(300)
-        df.loc[row_no] = [ '', '', '', k + 1001, i + 7, 'LISTENS_TO', ''] 
+        df.loc[row_no] = [ '', '', '', k + 1001, i + 7, 'LISTENS_TO', round(random.uniform(1, 5),2)] 
         row_no += 1
 
 df.to_csv('graph_dataset.csv')
