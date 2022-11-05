@@ -1,0 +1,62 @@
+-- import tracks
+load csv from 'file:///graph_dataset.csv' as row with row, toInteger(row[0]) as id, row[1] as labels, row[2] as name, toInteger(row[3]) as start, toInteger(row[4]) as end, row[5] as type, toFloat(row[6]) as rating
+where labels=":track"
+create(:track{id:id, name:name})
+
+-- import genres
+load csv from 'file:///graph_dataset.csv' as row with row, toInteger(row[0]) as id, row[1] as labels, row[2] as name, toInteger(row[3]) as start, toInteger(row[4]) as end, row[5] as type, toFloat(row[6]) as rating
+where labels=":genre"
+create(:genre{id:id, name:name})
+
+-- import names
+load csv from 'file:///graph_dataset.csv' as row with row, toInteger(row[0]) as id, row[1] as labels, row[2] as name, toInteger(row[3]) as start, toInteger(row[4]) as end, row[5] as type, toFloat(row[6]) as rating
+where labels=":user"
+create(:user{id:id, name:name})
+
+-- genre track relationship
+load csv from 'file:///graph_dataset.csv' as row with row, toInteger(row[0]) as id, row[1] as labels, row[2] as name, toInteger(row[3]) as start, toInteger(row[4]) as end, row[5] as type, toFloat(row[6]) as rating
+where type = "BELONGS_TO"
+match(t:track) where t.id=start
+match(g:genre) where g.id=end
+create (t)-[:BELONGS_TO]->(g)
+
+
+-- user track relationship
+load csv from 'file:///graph_dataset.csv' as row with row, toInteger(row[0]) as id, row[1] as labels, row[2] as name, toInteger(row[3]) as start, toInteger(row[4]) as end, row[5] as type, toFloat(row[6]) as rating
+where type = "LISTENS_TO"
+match(u:user) where u.id=start
+match(t:track) where t.id=end
+create (u)-[:LISTENS_TO]->(t)
+
+
+-- Content Filtering
+-- Recommend Shows for user - Tom Hardy
+match(u:user{name:"Harry Mulisch"})-[:LISTENS_TO]->
+(t:track)-[:BELONGS_TO]->(g:genre)<-[:BELONGS_TO]-(z:track) 
+where not exists((u)-[:LISTENS_TO]->(z)) with t, z, count(g) as intersection
+match (t)-[:BELONGS_TO]->(sc:genre)
+with t, z, intersection, COLLECT(sc.name) as s1
+match (z)-[:BELONGS_TO]->(zc:genre)
+with t, z, s1, intersection, COLLECT(zc.name) as s2
+with t, z, intersection, s1 + [x in s2 where not x in s1] as union, s1, s2
+return t.name as UserTrack, z.name as Recommendate, s1 as UserTrackGenre, s2 as RecommendateTrackGenre, ((1.0*intersection)/SIZE(union)) as jaccard order by jaccard desc
+
+
+
+
+-- Collaborative Filtering
+match(t:track)
+with collect(t.name) as tracks
+match(u:user{name:"Harry Mulisch"})-[:LISTENS_TO]->(z:track)
+with tracks, collect(z.name) as mytrack, u 
+with tracks, mytrack, gds.alpha.ml.oneHotEncoding(tracks, mytrack) as t1, u
+match(o:user)-[:LISTENS_TO]->(x:track)
+where u<>o
+with tracks, collect(x.name) as otherusertrack, mytrack, t1, o, u
+with t1, gds.alpha.ml.oneHotEncoding(tracks, otherusertrack) as t2, o, u
+with o, gds.similarity.cosine(t1, t2) as simindex, u
+order by simindex desc limit 1
+with o, u
+match(o:user)-[:LISTENS_TO]->(t:track)
+where not exists((u)-[:LISTENS_TO]->(t))
+return t.name as Recommendations
